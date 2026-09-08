@@ -121,6 +121,9 @@ capstone/
 │   └── metrics.py              # OOS R² (both denominator conventions), winsorization
 ├── exploratory/                # EDA, replication, verification, Midterm work
 │   └── README.md               # one line per script: what it asked, what it found
+├── test/                       # tests for src/ only
+│   ├── README.md               # one line per test file: what it guards
+│   └── conftest.py             # puts the repo root on sys.path
 └── output/                     # gitignored: figures and tables, all regenerable
 ```
 
@@ -130,6 +133,19 @@ to keep working. A finding that starts as an exploratory script and eventually m
 
 `exploratory/` is where replication of published results, verification of our own data
 checks, and other miscellaneous work.
+
+`test/` is the third step: `exploratory/` → `src/` → `test/`. Verification in
+`exploratory/` is print-based `[verify]` blocks you read yourself. Promotion to `src/`
+is not done until those blocks are rewritten as assertions in `test/test_<module>.py`.
+
+```bash
+pytest test/
+```
+
+Tests read no data — the panel is not in the repo, so anything needing it cannot run on a
+clean checkout. Use synthetic inputs: a hand-written month list, a ten-row frame. The suite
+finishes in seconds. If a function cannot be tested without the panel, split the pure part
+out of it.
 
 ---
 
@@ -142,5 +158,7 @@ For everyone working in this repo:
   yourself typing `/Users/…` or `C:\…` into a script, that belongs in config instead.
 - **Notebooks live in `exploratory/` only**, with outputs cleared before commit. Anything
   that will be rerun, or that a other people's work depends on, becomes a `.py`.
+- **Nothing enters `src/` untested.** One `test/test_<module>.py` per `src/` module, and
+  it runs without `data/`.
 - **It has to run from a clean checkout.** No cells that only work after deleted cells, no
   state living in your kernel, no file that exists only on your machine.
