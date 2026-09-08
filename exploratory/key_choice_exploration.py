@@ -10,8 +10,19 @@ legal issuing entity).
     - [verify] lines are internal identity checks and exit non-zero on failure;
     - [report] lines are measured and never asserted
 
-Run:  DSE4101_DATA_DIR=... python3 -m exploratory.key_choice_evidence
+The `# %%` markers make this runnable two ways off the same source:
+
+    - as cells (VS Code / PyCharm), against a live kernel, so the ~2GB identifier
+      slice is loaded once and every later cell reuses it in memory;
+    - as a script, top to bottom, exiting non-zero if any [verify] line failed.
+
+The RUN cells at the bottom are the script's execution path — there is no `main()`,
+so the two ways cannot drift apart.
+
+Run:  DSE4101_DATA_DIR=... python3 -m exploratory.key_choice_exploration
 """
+
+# %% setup
 
 from __future__ import annotations
 
@@ -33,7 +44,12 @@ CUSIP6_MATCH_MIN = 0.999
 _failures: list[str] = []
 
 
-def log(msg: str) -> None:
+# %% helpers — logging, checks, memory
+
+
+def log(
+        msg: str
+) -> None:
     """
     Prints a timestamped progress line.
 
@@ -50,7 +66,10 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def check(ok: bool, msg: str) -> bool:
+def check(
+        ok: bool,
+        msg: str
+) -> bool:
     """
     Records a pass/fail as a [verify] line without aborting the run.
     Failures accumulate in `_failures` and are turned into a non-zero exit by `main`
@@ -74,7 +93,9 @@ def check(ok: bool, msg: str) -> bool:
     return ok
 
 
-def report(msg: str) -> None:
+def report(
+        msg: str
+) -> None:
     """
     Prints a measured quantity as a [report] line. Never asserted.
 
@@ -105,6 +126,35 @@ def rss_gb() -> float:
     return peak / 1e9 if sys.platform == "darwin" else peak / 1e6
 
 
+def finish(
+        start: float
+) -> None:
+    """
+    Closes out a run: prints elapsed time and peak memory, then exits non-zero if
+    any `check()` failed.
+
+    Under a kernel this reports and, on failure, raises `SystemExit` — which the
+    kernel surfaces as a traceback and survives, so the loaded panel is not lost.
+
+    Parameters
+    ----------
+    start : float
+        The `time.time()` recorded when the run began.
+
+    Returns
+    -------
+    None
+    """
+
+    log(f"done in {time.time() - start:.1f}s. peak rss={rss_gb():.2f}GB")
+    if _failures:
+        log(f"{len(_failures)} check(s) failed")
+        sys.exit(1)
+
+
+# %% loading
+
+
 def load_identifiers() -> pd.DataFrame:
     """
     Loads the identifier slice of the panel, joined to realized `retx`.
@@ -122,7 +172,12 @@ def load_identifiers() -> pd.DataFrame:
     return df
 
 
-def check_keys(df: pd.DataFrame) -> None:
+# %% part 0 — what the two candidate keys actually are
+
+
+def check_keys(
+    df: pd.DataFrame
+) -> None:
     """
     Establishes what the two candidate issuer keys actually are: `gvkey` and `issuer_cusip`.
     Checks that `issuer_cusip` is the CUSIP-6 prefix of `cusip` for most rows, and reports
@@ -189,29 +244,115 @@ def check_keys(df: pd.DataFrame) -> None:
     n_issuer_null = int(df["issuer_cusip"].isna().sum())
     report(f"issuer_cusip missing on {n_issuer_null:,} / {n:,} rows ({100 * n_issuer_null / n:.2f}%)")
 
+# %% group sizes per key
 
-def main() -> None:
+
+def group_stats(
+        df: pd.DataFrame, 
+        key: str
+) -> pd.DataFrame:
     """
-    Runs each part in turn, then exits non-zero if any check failed.
+    Computes group-level statistics for a given key.
 
-    The ~2GB identifier slice is loaded once and passed down; every part reads the
-    same columns, so re-loading per part would dominate the runtime.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The identifier slice of the OSBAP panel.
+    key : str
+        The column name to group by.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with group-level statistics.
+    """
+    # assign a copy of the DataFrame to avoid SettingWithCopyWarning
+    keyed = df if key != "gvkey" else df.assign(gvkey=df["gvkey"].astype("int64"))
+
+    # safe to use size() == nunique("cusip") since (date, cusip) is unique in the panel; no duplicates.
+    grouped = keyed.groupby(["date", key], observed=True)
+    stats = grouped.size().rename("n_bonds").to_frame()
+
+    if key != "issuer_cusip":
+        stats["n_entities"] = grouped["issuer_cusip"].nunique()
+
+    return stats.reset_index()
+
+
+# %% Checking exposure
+
+
+def check_exposure(
+        df: pd.DataFrame
+) -> None:
+    """
+    Checks how much of the panel has multiple issuer_cusip entities per gvkey firm.
+        - check eligibility pass against the invariants `group_stats` relies on
+        - report exposure:
+            - as a share of firm-months
+            - as a share of bond-month observations
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The identifier slice of the OSBAP panel, loaded by `load_identifiers()`.
 
     Returns
     -------
     None
     """
 
-    start = time.time()
-    df = load_identifiers()
+    grp_stat = group_stats(df, "gvkey")
+    # check if entities outnumber bonds
+    check((grp_stat["n_entities"] <= grp_stat["n_bonds"]).all(), "n_entities <= n_bonds in every gvkey-month")
 
-    check_keys(df)
+    # check that single-bond gvkey-months have exactly 1 entity
+    check(
+        (grp_stat.loc[grp_stat["n_bonds"] == 1, "n_entities"] == 1).all(),
+        "single-bond gvkey-months have exactly 1 entity",
+    )
 
-    log(f"done in {time.time() - start:.1f}s. peak rss={rss_gb():.2f}GB")
-    if _failures:
-        log(f"{len(_failures)} check(s) failed")
-        sys.exit(1)
+    #check that the sum of n_bonds equals the total number of rows in df
+    check(int(grp_stat["n_bonds"].sum()) == len(df), "group_stats n_bonds sums to the panel row count")
+
+    # Single-bond firm-months can't be multi-entity
+    # including them would measure how many firms have >=2 bonds, not contamination.
+    eligible = grp_stat[grp_stat["n_bonds"] >= 2]
+    n_eligible_obs = int(eligible["n_bonds"].sum())
+    report(
+        f"gvkey coverage: {len(eligible):,} / {len(grp_stat):,} firm-months eligible (>=2 bonds), "
+        f"{n_eligible_obs:,} / {len(df):,} bond-months"
+    )
+
+    multi = eligible[eligible["n_entities"] >= 2]
+    n_multi_obs = int(multi["n_bonds"].sum())
+    report(
+        f"exposure (firm-months): {100 * len(multi) / len(eligible):.1f}% "
+        f"({len(multi):,} / {len(eligible):,} eligible firm-months hold >=2 distinct issuer_cusip)"
+    )
+    report(
+        f"exposure (bond-months): {100 * n_multi_obs / n_eligible_obs:.1f}% "
+        f"({n_multi_obs:,} / {n_eligible_obs:,} eligible bond-months sit in a multi-entity firm-month)"
+    )
 
 
-if __name__ == "__main__":
-    main()
+# %% RUN — load the panel once per kernel
+#
+# The ~2GB identifier slice is loaded here and reused by every cell below; every
+# part reads the same columns, so re-loading per part would dominate the runtime.
+# Rerun this cell only to pick up a new data vintage.
+
+_start = time.time()
+df = load_identifiers()
+
+# %% RUN — part 0: What the two candidate keys actually are
+
+check_keys(df)
+
+# %% RUN — part 1: Checking exposure
+
+check_exposure(df)
+
+# %% RUN — close out
+
+finish(_start)
