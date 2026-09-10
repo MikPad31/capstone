@@ -72,7 +72,7 @@ def check(
 ) -> bool:
     """
     Records a pass/fail as a [verify] line without aborting the run.
-    Failures accumulate in `_failures` and are turned into a non-zero exit by `main`
+    Failures accumulate in `_failures` and are turned into a non-zero exit by `finish`.
 
     Parameters
     ----------
@@ -152,7 +152,7 @@ def finish(
         sys.exit(1)
 
 
-# %% loading
+# %% Loading
 
 
 def load_identifiers() -> pd.DataFrame:
