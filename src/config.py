@@ -25,6 +25,7 @@ PANEL_END = "2022-11"
 
 HORIZONS = (1, 3, 12)
 
+# Declared provisionally, may change after exploratory analysis.
 OOS_START = None
 
 SEED = 0

@@ -222,3 +222,50 @@ def load_panel(
                 df[name] = df[name].astype("category")
 
     return df
+
+def load_predictions(
+        target: str,
+        models: tuple[str, ...] | None = None,
+        cols: tuple[str, ...] = ("signal_date", "cusip", "model_key", "realized_return", "prediction"),
+) -> pd.DataFrame:
+    """
+    Loads a slice of `predictions.parquet` for a single target filtered at the parquet level.
+    Manages memory by reading only requested columns so peak memory stays at one target slice at a time.
+
+    Parameters
+    ----------
+    target : str
+        One of retd/retx/retxrf, the realized-return target to filter on.
+    models : tuple[str, ...] | None
+        Optional model_key values to filter on. If None, all models are returned.
+    cols : tuple[str, ...]
+        Columns to read from the parquet file. 
+        Defaults to "signal_date", "cusip", "model_key", "realized_return", "prediction".
+    
+    Returns
+    -------
+    pd.DataFrame
+        The requested slice of predictions.parquet, filtered by target and optionally model_key.
+
+    Raises
+    ------
+    ValueError
+        If `target` is not one of retd/retx/retxrf.
+    """
+    
+    bad = set([target]) - _VALID_TARGETS
+    if bad:
+        raise ValueError(f"unknown target {target}, expected one of {_VALID_TARGETS}")
+
+    filters = [("target", "==", target)]
+    if models is not None:
+        filters.append(("model_key", "in", list(models)))
+
+    df = pd.read_parquet(
+        _require(_PARQUET_PATH, "predictions.parquet"),
+        columns=list(cols),
+        filters=filters,
+    )
+    df["signal_date"] = df["signal_date"].astype("datetime64[ns]")
+
+    return df

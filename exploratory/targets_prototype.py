@@ -1,19 +1,132 @@
 """
-Forward cumulative returns over t, t+1, ..., t+h-1, and the checks that validate them.
-Input for `forward_return` is assumed to be one-month-forward returns, so the window starts at `h=1`.
+Explores whether compounding `t+1 ... t+h` within `cusip` reproduces the shipped realized return at `h=1`.
+Checks the cost in sample size at `h=3` and `h=12`.
 
-    - `_gross_grid` is private: an implementation detail of `forward_return`, tested
-      directly only from `test/test_targets.py`
-    - `check_h1` never raises on a mismatch
+Run: DSE4101_DATA_DIR=... python3 -m exploratory.targets_prototype
 """
 
-
+# %% Setup
 from __future__ import annotations
+
+import resource
+import sys
+import time
 
 import numpy as np
 import pandas as pd
 
-from src.data import load_panel
+from src.config import HORIZONS
+from src.data import load_panel, load_predictions
+
+# %% Helper functions
+
+_failures: list[str] = []
+
+def log(
+        msg: str
+) -> None:
+    """
+    Prints a timestamped progress line.
+
+    Parameters
+    ----------
+    msg : str
+        Text to print.
+
+    Returns
+    -------
+    None
+    """
+
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def check(
+        ok: bool,
+        msg: str
+) -> bool:
+    """
+    Records a pass/fail as a [verify] line without aborting the run.
+    Failures accumulate in `_failures` and are turned into a non-zero exit by `finish`.
+
+    Parameters
+    ----------
+    ok : bool
+        Whether the check passed.
+    msg : str
+        What was checked, stated with the measured quantity in it.
+
+    Returns
+    -------
+    bool
+        `ok`, unchanged, for use in a conditional.
+    """
+
+    print(f"[verify] {'PASS' if ok else 'FAIL'} — {msg}", flush=True)
+    if not ok:
+        _failures.append(msg)
+    return ok
+
+
+def report(
+        msg: str
+) -> None:
+    """
+    Prints a measured quantity as a [report] line. Never asserted.
+
+    Parameters
+    ----------
+    msg : str
+        The measurement, including the unit it is denominated in.
+
+    Returns
+    -------
+    None
+    """
+
+    print(f"[report] {msg}", flush=True)
+
+
+def rss_gb() -> float:
+    """
+    Returns the peak resident set size of this process in gigabytes.
+
+    Returns
+    -------
+    float
+        Peak RSS in GB.
+    """
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on Darwin, KB on Linux
+    return peak / 1e9 if sys.platform == "darwin" else peak / 1e6
+
+
+def finish(
+        start: float
+) -> None:
+    """
+    Closes out a run: prints elapsed time and peak memory, then exits non-zero if
+    any `check()` failed.
+
+    Under a kernel this reports and, on failure, raises `SystemExit` — which the
+    kernel surfaces as a traceback and survives, so the loaded panel is not lost.
+
+    Parameters
+    ----------
+    start : float
+        The `time.time()` recorded when the run began.
+
+    Returns
+    -------
+    None
+    """
+
+    log(f"done in {time.time() - start:.1f}s. peak rss={rss_gb():.2f}GB")
+    if _failures:
+        log(f"{len(_failures)} check(s) failed")
+        sys.exit(1)
+
+# %% Loading the returns
 
 RETURN_COLS = ["date", "cusip"]
 
@@ -27,9 +140,19 @@ def load_returns() -> pd.DataFrame:
         One row per bond-month: `RETURN_COLS`, `retx_realized_return` and `retxrf_realized_return`.
     """
 
+    log("loading return slice (date, cusip, retx, retxrf)")
     df = load_panel(cols=RETURN_COLS, targets=("retx", "retxrf"))
+    log(f"  rows={len(df):,}  rss={rss_gb():.2f}GB")
 
+    report(f"return slice: {len(df):,} rows")
+    report(
+        f"dates: {df['date'].min()} .. {df['date'].max()}  "
+        f"({df['date'].nunique():,} distinct months)"
+    )
     return df
+
+
+# %% Compounding
 
 def _gross_grid(
         df: pd.DataFrame,
@@ -39,8 +162,6 @@ def _gross_grid(
 ) -> pd.DataFrame:
     """
     Dense bond x month grid of gross returns, with NaN for missing months.
-    The grid is the gap handling mechanism for absent bonds.
-    `by` must be the bond identifier, not the issuer key.
     
     Parameters
     ----------
@@ -103,10 +224,6 @@ def forward_return(
     """
     Cumulative return over `t, t+1, ..., t+h-1` aligned to signal month.
     `ret_col` is assumed to be one-month forward returns thus the window starts at `h=1`.
-
-    At horizon=1 this is an identity: label(t,1) == ret_col[t], no shift. 
-    Compounding is a direct product and output is named f"{ret_col}_fwd{horizon}".
-    Note: does not use log1p/expm1 because the log form turns values below 0.0 into NaN and sums it across the bond
     
     Parameters
     ----------
@@ -204,6 +321,16 @@ def check_h1(
     n_fwd_only = int((fwd_valid & ~shipped_valid).sum())
     n_shipped_only = int((~fwd_valid & shipped_valid).sum())
 
+    check(
+        max_abs_diff == 0.0,
+        f"h=1 forward_return({ret_col}) reproduces its input exactly on "
+        f"{n_compared} rows (max abs diff {max_abs_diff})",
+    )
+    check(
+        n_fwd_only == 0 and n_shipped_only == 0,
+        f"h=1 one-sided rows: {n_fwd_only} fwd-only, {n_shipped_only} shipped-only",
+    )
+
     return {
         "n_compared": n_compared,
         "n_exact": n_exact,
@@ -213,6 +340,47 @@ def check_h1(
     }
 
 
+def check_grid_round_trip(
+        df: pd.DataFrame,
+        ret_col: str,
+        by: str = "cusip",
+        date_col: str = "date",
+) -> dict[str, int]:
+    """
+    Checks that `_gross_grid` pivots and preserves every input row exactly once.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe with `by`, `date_col` and `ret_col`.
+    ret_col : str
+        Return column to compound.
+    by : str, optional
+        Column to group by (default is "cusip").
+    date_col : str, optional
+        Signal-month column (default is "date").
+
+    Returns
+    -------
+    dict[str, int]
+        n_input         : len(df)
+        n_grid          : non-null cells in the pivoted grid
+        n_missing_key   : rows with a missing `by` or `date_col` value, which `_gross_grid` drops
+    """
+
+    n_input = len(df)
+    grid = _gross_grid(df, ret_col, by=by, date_col=date_col)
+    n_grid = int(grid.notna().sum().sum())
+    n_missing_key = int(df[by].isna().sum() + pd.to_datetime(df[date_col]).isna().sum())
+
+    check(n_grid == n_input, f"grid round-trip: {n_grid:,} non-null cells vs {n_input:,} input rows")
+
+    return {
+        "n_input": n_input,
+        "n_grid": n_grid,
+        "n_missing_key": n_missing_key,
+    }
+
 def label_coverage(
         fwd: pd.Series,
         df: pd.DataFrame,
@@ -220,7 +388,11 @@ def label_coverage(
 ) -> pd.DataFrame:
     """
     Labelled and unlabelled bond-months per signal month.
-    Enables clear comparisons of label coverage across horizons, models, and targets.
+
+    A rung's sample size is a function of the horizon, quietly: at h=12 every bond
+    leaving the panel within a year of a month is unlabelled there. This is what makes
+    "L0 at h=1 versus L0 at h=12" a comparison of two samples rather than an unexplained
+    drop in n.
 
     Parameters
     ----------
@@ -255,3 +427,32 @@ def label_coverage(
     agg["n_labelled"] = agg["n_labelled"].astype("int64")
 
     return agg
+
+# %% RUN — load once
+
+_start = time.time()
+df = load_returns()
+
+# %% RUN — V1a: grid round-trip
+
+for ret_col in ("retx_realized_return", "retxrf_realized_return"):
+    check_grid_round_trip(df, ret_col)
+
+# %% RUN — V1b: check_h1
+
+for ret_col in ("retx_realized_return", "retxrf_realized_return"):
+    check_h1(df, ret_col)
+
+# %% RUN — V3: coverage
+
+for h in HORIZONS:
+    for ret_col in ("retx_realized_return", "retxrf_realized_return"):
+        fwd = forward_return(df, ret_col, h)
+        cov = label_coverage(fwd, df)
+        report(f"{ret_col} h={h}: {fwd.notna().mean():.1%} labelled overall")
+        n_missing = int(df[ret_col].isna().sum())
+        report(f"{ret_col}: {n_missing:,} missing after join ({n_missing/len(df):.4%})")
+
+# %% RUN — close out
+
+finish(_start)
