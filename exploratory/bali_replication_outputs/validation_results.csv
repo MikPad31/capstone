@@ -1,0 +1,3 @@
+model,validation_r2
+OLS,-0.28713332269566805
+Random Forest,-0.19939590021114784
