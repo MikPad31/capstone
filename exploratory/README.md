@@ -102,3 +102,34 @@ L2       510510  486610  385119
 [report] Negative control results for level L0, horizon 12 months: Naive R^2 = -0.0928, Naive train rows = 4,516,838
 done in 956.8s. peak rss=5.56GB
 ```
+
+- `within_issuer_predictors.py`:
+    which predictors vary across an issuer's bonds in the same month? Exactly 301 of 341 never
+    vary within a (`gvkey`, month); 40 vary in >= 5% of multi-bond issuer-months (38 of them in
+    > 50%). No predictor sits in between, so the split is not threshold-sensitive. Writes
+    `output/within_issuer_predictors.csv`, read by `phase2_grid.py`.
+
+- `phase2_grid.py` / `phase2_results.py` (harness promoted to `src/harness.py`, models in
+    `src/models.py`, DM test in `src/inference.py`; full run: `bash scripts/run_phase2.sh`):
+    OLS, Elastic Net, Random Forest (LightGBM `boosting="rf"`) x L0/L1/IC/L2 x h=1/3/12 on the
+    common sample (same L2-eligible rows for every level), plus L2 with the 40 within-issuer
+    predictors. EN and RF tune on the last 36 training months behind an h-month embargo.
+
+    Only L2 at h=1 beats a zero forecast significantly (RF +0.0089, DM p=0.001; EN +0.0082,
+    p=0.06). L1/IC at h=12 reach +0.04-0.05 vs zero but < 0.01 vs the prevailing training mean,
+    and are insignificant. EN/RF beat OLS everywhere; RF picks depth-1 trees in most folds.
+    Within-issuer predictors match all 341 for L2 under RF. Demeaning L2 forecasts within
+    issuer-month raises R^2 for every model. DNR's shipped forecasts are also negative at L0 on
+    our h=1 rows. Checks: midterm OLS reproduced exactly through the new harness; L1 = IC + L2
+    row by row; L2 R^2 = 0 with issuer-constant predictors only.
+
+```
+OOS R^2 (zero benchmark), common sample, all predictors:
+           h=1      h=3      h=12
+ols  L2  +0.0051  -0.0076  -0.0305
+enet L2  +0.0082  +0.0047  +0.0069
+rf   L2  +0.0089  +0.0035  +0.0019
+n        510,510  486,610  385,119
+```
+    Known issue: the pure-Python coordinate descent in `src/models.py` is slow when tuning picks
+    a very small alpha; the full grid took ~2 days. `config.OOS_START` is still unset (2015-01 used).
