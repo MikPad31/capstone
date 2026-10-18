@@ -115,13 +115,27 @@ done in 956.8s. peak rss=5.56GB
     common sample (same L2-eligible rows for every level), plus L2 with the 40 within-issuer
     predictors. EN and RF tune on the last 36 training months behind an h-month embargo.
 
-    Only L2 at h=1 beats a zero forecast significantly (RF +0.0089, DM p=0.001; EN +0.0082,
-    p=0.06). L1/IC at h=12 reach +0.04-0.05 vs zero but < 0.01 vs the prevailing training mean,
-    and are insignificant. EN/RF beat OLS everywhere; RF picks depth-1 trees in most folds.
-    Within-issuer predictors match all 341 for L2 under RF. Demeaning L2 forecasts within
-    issuer-month raises R^2 for every model. DNR's shipped forecasts are also negative at L0 on
-    our h=1 rows. Checks: midterm OLS reproduced exactly through the new harness; L1 = IC + L2
-    row by row; L2 R^2 = 0 with issuer-constant predictors only.
+    Only L2 at h=1 beats a zero forecast significantly: RF +0.0089 (DM p=0.001), EN +0.0082
+    (p=0.06, so 10% level only). L1/IC at h=12 reach +0.04-0.05 vs zero but < 0.01 vs the
+    prevailing training mean, and are insignificant. EN and RF have higher R^2 than OLS in every
+    cell of the all-predictor grid, but the DM difference is significant at 5% only for EN
+    (L0 h=12, IC h=1) and RF (L0 h=12); RF never differs significantly from EN at 5%.
+
+    RF's chosen depth depends on the target. For L0/L1/IC it picks depth 1 in 43 of 69 folds,
+    mostly at h=3 and h=12 (at h=1 the choice varies across 1-6). For L2 at h=1 it picks depth 6,
+    the grid maximum, in 6 of 8 folds (3 of 8 at h=3). Since depth 6 binds for L2, the grid should
+    extend deeper before reading anything into L2 nonlinearity.
+
+    For L2, the 40 within-issuer predictors match all 341 under RF at h=1 and h=12 and beat
+    them at h=3 (DM p=0.04); under EN, all 341 do better at h=1 only (p=0.013). Demeaning L2
+    forecasts within issuer-month raises R^2 for every model at every horizon. DNR's shipped
+    forecasts are also negative at L0 on our h=1 rows; at L1 they beat ours (best +0.0109 vs
+    our EN -0.0001), cause not yet established.
+
+    Checks: the original `target_pipeline.py` reproduces the midterm OLS table exactly (all 9
+    cells); the new harness reproduces it on the two cells checked (L0 and L2 at h=1, midterm
+    samples). L1 = IC + L2 row by row for all models and horizons (max gap 0). With only
+    issuer-constant predictors, L2 R^2 is exactly 0 for OLS and within 4e-7 of 0 for RF.
 
 ```
 OOS R^2 (zero benchmark), common sample, all predictors:
@@ -131,5 +145,7 @@ enet L2  +0.0082  +0.0047  +0.0069
 rf   L2  +0.0089  +0.0035  +0.0019
 n        510,510  486,610  385,119
 ```
-    Known issue: the pure-Python coordinate descent in `src/models.py` is slow when tuning picks
-    a very small alpha; the full grid took ~2 days. `config.OOS_START` is still unset (2015-01 used).
+    Runtime on an M1 Pro (16 GB): about 2.5-3 hours of compute for all 51 cells (OLS ~1 min per
+    cell, EN and RF ~4-7 min per cell). The run spanned ~50 hours of wall-clock time only because
+    the laptop slept for ~45 of them (macOS power log); nothing runs during sleep.
+    `config.OOS_START` is still unset (2015-01 used).

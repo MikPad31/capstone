@@ -112,9 +112,10 @@ def dm_table(scores: pd.DataFrame) -> pd.DataFrame:
 # %% 4. DNR shipped forecasts as an external benchmark
 def dnr_benchmark() -> pd.DataFrame:
     """
-    The DNR authors' own out-of-sample forecasts (their sample split, their tuning), scored on our
-    h=1 common-sample test rows. Against our winsorized labels and against their raw realized
-    returns, so the effect of winsorizing is visible.
+    The forecasts shipped with the DNR data, scored on our h=1 common-sample test rows. How the
+    authors estimated them (sample split, refit schedule, tuning) is not documented in the
+    download and has not been checked here. Scored against our winsorized labels and against
+    their raw realized returns, so the effect of winsorizing is visible.
     """
 
     rows = []

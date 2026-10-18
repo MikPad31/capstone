@@ -224,6 +224,8 @@ class TunedElasticNet:
 
 # Depth 1 is included because tuning on the largest fold, and the midterm replication, both
 # chose the shallowest depth offered: an optimum on the edge of the grid is not an optimum.
+# Depth 6 is in turn the grid's upper edge, and L2 at h=1 picks it in 6 of 8 folds; see
+# exploratory/README.md before reading L2 results as evidence about nonlinearity.
 RF_GRID = {
     "max_depth": (1, 2, 4, 6),
     "min_data_in_leaf": (200, 2000),
@@ -235,9 +237,11 @@ class TunedRandomForest:
     Random forest (LightGBM, boosting="rf") with depth and leaf size chosen on the embargoed
     inner validation split, then refit on the full training window with more trees.
 
-    boosting="rf" is bagged, independently grown, averaged trees -- Breiman's estimator -- on
-    histogram-binned features. Each tree sees `bagging_fraction` of the rows and each split
-    considers `feature_fraction` of the predictors.
+    boosting="rf" averages independently grown trees on histogram-binned features. Two
+    differences from Breiman's random forest: each tree is fitted on a `bagging_fraction`
+    subsample of rows drawn without replacement (not a bootstrap sample), and `feature_fraction`
+    samples the predictors once per tree, not at every split (LightGBM's per-split option is
+    `feature_fraction_bynode`, not used here).
     """
 
     needs_months = True
