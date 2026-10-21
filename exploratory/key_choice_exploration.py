@@ -26,7 +26,6 @@ Run:  DSE4101_DATA_DIR=... python3 -m exploratory.key_choice_exploration
 
 from __future__ import annotations
 
-import resource
 import sys
 import time
 
@@ -34,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from src.data import load_panel
+from src.runlog import rss_gb as _peak_rss_gb
 
 IDENTIFIER_COLS = ["date", "cusip", "issuer_cusip", "gvkey", "RATING_NUM"]
 
@@ -122,8 +122,7 @@ def rss_gb() -> float:
         Peak RSS in GB.
     """
 
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on Darwin, KB on Linux
-    return peak / 1e9 if sys.platform == "darwin" else peak / 1e6
+    return _peak_rss_gb()
 
 
 def finish(

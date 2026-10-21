@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.harness import IC, L0, L1, L2, LEVELS, eligible_rows, project, score
+from src.harness import IC, L0, L1, L2, LEVELS, eligible_rows, project, score, score_by_period
 
 
 def _frame():
@@ -78,6 +78,55 @@ def test_score_benchmarks():
     assert np.isclose(out["r2_hist"], 1 - sse / sum((v - 0.25) ** 2 for v in [1.0, -1.0, 2.0, 0.0]))
     assert np.isclose(out["r2_oosmean"], 1 - sse / sum((v - 0.5) ** 2 for v in [1.0, -1.0, 2.0, 0.0]))
     assert out["n"] == 4
+
+
+def _period_preds(dates):
+    return pd.DataFrame({
+        "date": dates,
+        "y": [1.0, -1.0, 2.0, 0.0, 0.5, -0.5],
+        "yhat": [0.5, -0.5, 1.0, 0.0, 0.0, 0.0],
+        "ybar": [0.25] * 6,
+    })
+
+
+PERIODS = (("early", "2019-11", "2019-12"), ("late", "2020-01", "2020-02"))
+MONTHS = ["2019-11", "2019-11", "2019-12", "2020-01", "2020-02", "2020-02"]
+
+
+@pytest.mark.parametrize("dates", [
+    MONTHS,                                       # strings, as phase2_results reads them from parquet
+    list(pd.PeriodIndex(MONTHS, freq="M")),       # Periods, as fit_predict_fold produces them
+], ids=["str", "period"])
+def test_score_by_period_matches_score_on_each_slice(dates):
+    preds = _period_preds(dates)
+    out = score_by_period(preds, PERIODS).set_index("period")
+
+    for name, rows in [("early", [0, 1, 2]), ("late", [3, 4, 5])]:
+        expected = score(preds.iloc[rows])
+        for k in ("r2_zero", "r2_hist", "r2_oosmean", "n"):
+            assert np.isclose(out.loc[name, k], expected[k])
+    assert out["n"].sum() == len(preds)
+    assert out.loc["early", "n_months"] == 2 and out.loc["late", "n_months"] == 2
+
+
+def test_score_by_period_bounds_are_inclusive():
+    preds = _period_preds(MONTHS)
+    out = score_by_period(preds, (("one", "2019-12", "2020-01"),))
+    assert out.loc[0, "n"] == 2  # exactly the 2019-12 and 2020-01 rows
+
+
+def test_score_by_period_empty_period_is_nan():
+    preds = _period_preds(MONTHS)
+    out = score_by_period(preds, PERIODS + (("none", "2021-01", "2021-12"),)).set_index("period")
+    assert out.loc["none", "n"] == 0 and out.loc["none", "n_months"] == 0
+    assert np.isnan(out.loc["none", "r2_zero"])
+
+
+def test_score_by_period_leaves_uncovered_rows_unscored():
+    # Callers detect a mis-specified period list by comparing the n column to len(preds).
+    preds = _period_preds(MONTHS)
+    out = score_by_period(preds, PERIODS[:1])
+    assert out["n"].sum() == 3 < len(preds)
 
 
 def test_unknown_transform_raises():

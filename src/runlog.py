@@ -6,9 +6,13 @@ Promoted from `exploratory/target_pipeline.py` unchanged in behaviour.
 
 from __future__ import annotations
 
-import resource
 import sys
 import time
+
+try:
+    import resource
+except ImportError:  # Windows has no `resource`; rss_gb falls back to the Win32 API
+    resource = None
 
 _failures: list[str] = []
 
@@ -37,9 +41,46 @@ def report(msg: str) -> None:
     print(f"[report] {msg}", flush=True)
 
 
+def _windows_peak_bytes() -> int:
+    """Peak working set of this process in bytes, via psapi.GetProcessMemoryInfo."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD),
+            ("PageFaultCount", wintypes.DWORD),
+            ("PeakWorkingSetSize", ctypes.c_size_t),
+            ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t),
+            ("PeakPagefileUsage", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32")
+    psapi = ctypes.WinDLL("psapi")
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    psapi.GetProcessMemoryInfo.argtypes = [
+        wintypes.HANDLE, ctypes.POINTER(PROCESS_MEMORY_COUNTERS), wintypes.DWORD,
+    ]
+    psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+
+    counters = PROCESS_MEMORY_COUNTERS()
+    counters.cb = ctypes.sizeof(counters)
+    if not psapi.GetProcessMemoryInfo(kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+        raise ctypes.WinError()
+    return int(counters.PeakWorkingSetSize)
+
+
 def rss_gb() -> float:
     """Peak resident set size of this process in gigabytes."""
 
+    if resource is None:
+        return _windows_peak_bytes() / 1e9
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on Darwin, KB on Linux
     return peak / 1e9 if sys.platform == "darwin" else peak / 1e6
 

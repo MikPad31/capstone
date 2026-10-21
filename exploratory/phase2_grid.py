@@ -25,14 +25,14 @@ import time
 import numpy as np
 import pandas as pd
 
-from src.config import OUTPUT_DIR
+from src.config import OOS_START as CONFIG_OOS_START, OUTPUT_DIR
 from src.data import PREDICTOR_COLS, load_panel
 from src.harness import LEVELS, build_labels, run_level, score
 from src.models import TunedElasticNet, TunedRandomForest
 from src.pipeline import ols_builder
 from src.runlog import check, finish, log, report, rss_gb
 
-OOS_START = pd.Period("2015-01", freq="M")  # as at midterm; still provisional in src/config.py
+OOS_START = pd.Period(CONFIG_OOS_START, freq="M")
 REFIT_FREQ = 12
 HORIZONS = (1, 3, 12)
 
@@ -104,6 +104,19 @@ def main() -> None:
         (m, lvl, h) for m in models for h in horizons for lvl in levels
         if args.force or smoke or not (PREDS_DIR / f"{cell_name(m, lvl.name, h, pset, common)}.parquet").exists()
     ]
+
+    # A saved cell is skipped on resume, so one fitted under an older OOS start would otherwise
+    # sit in the tables next to cells fitted under the current one.
+    scores_path = OUT / "scores.csv"
+    if scores_path.exists() and not (args.force or smoke):
+        saved = pd.read_csv(scores_path, dtype={"oos_start": str})
+        stale = saved.loc[saved["oos_start"] != str(OOS_START), "cell"].tolist()
+        if stale:
+            raise SystemExit(
+                f"{len(stale)} saved cell(s) in {scores_path} were fitted with a different OOS start "
+                f"than config.OOS_START={OOS_START}, e.g. {stale[:3]}. Move output/phase2 aside and "
+                f"rerun, or pass --force to refit."
+            )
     log(f"{len(todo)} cell(s) to run; predictor set {pset!r} ({len(predictors)} predictors); "
         f"{'common' if common else 'own'} sample")
     if not todo:

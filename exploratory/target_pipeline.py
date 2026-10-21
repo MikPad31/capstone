@@ -7,7 +7,6 @@ RUN: DSE4101_DATA_DIR=... python3 -m exploratory.target_pipeline
 # %% Setup
 from __future__ import annotations
 
-import resource
 import sys
 import time
 from typing import NamedTuple, Callable, Sequence
@@ -15,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from src.data import PREDICTOR_COLS, load_panel
+from src.runlog import rss_gb as _peak_rss_gb
 from src.targets import forward_return, label_coverage
 from src.decompose import _cast_keys, issuer_month_stats, demean
 from src.splits import Fold, generate_folds, _generate, rows_for_months, leaked_months, label_months
@@ -107,8 +107,7 @@ def rss_gb() -> float:
         Peak RSS in GB.
     """
 
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on Darwin, KB on Linux
-    return peak / 1e9 if sys.platform == "darwin" else peak / 1e6
+    return _peak_rss_gb()
 
 
 def finish(

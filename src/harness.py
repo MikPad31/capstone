@@ -360,3 +360,30 @@ def score(preds: pd.DataFrame, yhat_col: str = "yhat") -> dict[str, float]:
         "r2_oosmean": r2_from_sums(sums, sums["sum_r"] / sums["n"]),
         "n": int(sums["n"]),
     }
+
+
+def score_by_period(
+        preds: pd.DataFrame,
+        periods: Sequence[tuple[str, str, str]],
+        yhat_col: str = "yhat",
+        date_col: str = "date",
+) -> pd.DataFrame:
+    """
+    `score` within each (name, first, last) block of signal months, both ends inclusive.
+
+    Rows are assigned by forecast origin, not by when the label is realised: at h=12 a 2019
+    signal's label already contains 2020 returns. A period holding no rows scores NaN with n=0.
+    Rows outside every period are not scored; callers check that the n column sums to len(preds).
+    """
+
+    months = pd.PeriodIndex(preds[date_col].astype(str), freq="M")
+    rows = []
+    for name, first, last in periods:
+        mask = np.asarray((months >= pd.Period(first, freq="M")) & (months <= pd.Period(last, freq="M")))
+        if mask.any():
+            s = score(preds.loc[mask], yhat_col)
+        else:
+            s = {"r2_zero": np.nan, "r2_hist": np.nan, "r2_oosmean": np.nan, "n": 0}
+        rows.append({"period": name, "first": first, "last": last,
+                     "n_months": int(months[mask].nunique()), **s})
+    return pd.DataFrame(rows)

@@ -148,4 +148,42 @@ n        510,510  486,610  385,119
     Runtime on an M1 Pro (16 GB): about 2.5-3 hours of compute for all 51 cells (OLS ~1 min per
     cell, EN and RF ~4-7 min per cell). The run spanned ~50 hours of wall-clock time only because
     the laptop slept for ~45 of them (macOS power log); nothing runs during sleep.
-    `config.OOS_START` is still unset (2015-01 used).
+
+    `config.OOS_START` is now pinned at 2015-01, the start every cell above was fitted with, so
+    no refit is needed. `phase2_grid.py` reads it from config and refuses to resume on top of
+    cells saved under a different start; `phase2_results.py` checks every cell agrees.
+
+- `phase2_results.py`, section 5 (sub-period robustness; periods in `config.SUBPERIODS`,
+    scoring in `src/harness.py:score_by_period`):
+    does the full-sample pattern hold within pre-COVID (2015-01 to 2019-12), COVID (2020) and
+    post-COVID (2021-01 onward) forecast-origin months? Every cell is re-scored from its saved
+    predictions, no refit; written to `output/phase2/subperiods.csv` and `tables.md`.
+
+    L2 at h=1 holds: positive in all three periods under RF, and pre- and post-COVID under OLS
+    and EN (both ~0 in 2020). The L1/IC h=12 gains do not: EN/RF are negative pre- and
+    post-COVID and strongly positive only in 2020 (EN L1 h=12: -0.055 / +0.251 / -0.720). The
+    2020 rally and the 2022 sell-off dominate the zero-benchmark denominator; against the
+    prevailing training mean the swings shrink sharply (EN L1 h=12: -0.038 / +0.089 / 0.000).
+    EN/RF beat OLS on L2 h=1 pre-COVID and in 2020, but OLS is best post-COVID. Within-issuer
+    predictors stay within ~0.002 of all 341 at h=1/3 and ~0.01 at h=12 for OLS/EN in every
+    period, and beat all 341 under RF post-COVID.
+
+    Caveats: 12 COVID months and 22/20/11 post-COVID months at h=1/3/12, too few for
+    per-period DM tests, so sub-period R^2 is read directionally. Periods are by forecast
+    origin, so h=12 signals from 2019 already carry 2020 returns. Checks: every cell's
+    periods sum to its full-sample row count (51 of 51).
+
+```
+OOS R^2 (zero benchmark), L2, all predictors, by forecast-origin period:
+                   h=1      h=3      h=12
+ols  pre_covid   +0.0063  -0.0185  -0.1208
+ols  covid       -0.0008  +0.0089  +0.0534
+ols  post_covid  +0.0244  -0.0074  +0.1888
+enet pre_covid   +0.0134  +0.0030  -0.0075
+enet covid       -0.0002  +0.0046  +0.0017
+enet post_covid  +0.0234  +0.0165  +0.1442
+rf   pre_covid   +0.0116  -0.0014  -0.0132
+rf   covid       +0.0052  +0.0100  +0.0104
+rf   post_covid  +0.0138  +0.0083  +0.0690
+months           60/12/22 60/12/20 60/12/11   (pre/covid/post)
+```

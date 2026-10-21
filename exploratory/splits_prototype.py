@@ -22,10 +22,8 @@ import pandas as pd
 from src.config import PANEL_START, PANEL_END, HORIZONS, OOS_START, OUTPUT_DIR
 from src.splits import Fold, _generate, generate_folds, label_months, leaked_months
 
-# The group has not settled the real OOS_START (`src.config.OOS_START` is deliberately
-# None), so every number this script prints for the real calendar is provisional. Kept
-# local: putting it in config.py is how a value nobody chose becomes the value everybody
-# used.
+# Written while OOS_START was still undecided; the value has since been pinned in
+# `src.config.OOS_START`, and V5 checks the two agree.
 PROVISIONAL_OOS_START = pd.Period("2015-01", freq="M")
 
 _failures: list[str] = []
@@ -438,10 +436,9 @@ def v5_real_calendar(
     check(len(months) == 245,
           f"panel calendar is 245 contiguous months, {months[0]} … {months[-1]} "
           f"(got {len(months)})")
-    check(OOS_START is None,
-          "config.OOS_START is still unset — no module can inherit an undecided split")
-    report(f"oos_start={oos_start} is PROVISIONAL: every count below moves if the group "
-           f"chooses another start")
+    check(OOS_START == str(PROVISIONAL_OOS_START),
+          f"config.OOS_START ({OOS_START}) is the start these counts were worked out for")
+    report(f"oos_start={oos_start}: every count below moves if config.OOS_START changes")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

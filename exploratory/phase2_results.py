@@ -7,6 +7,9 @@ Tables and inference for the Phase 2 grid, from the saved predictions only (no r
        each model vs the zero forecast (is R^2 > 0 distinguishable from noise?); and, for L2,
        all 341 predictors vs the 40 within-issuer-varying ones
     4. external benchmark: the DNR authors' own shipped forecasts, scored on our h=1 test rows
+    5. sub-period robustness: every cell re-scored within each `config.SUBPERIODS` block of
+       forecast-origin months (pre-COVID / COVID / post-COVID). No DM tests per sub-period: the
+       12-month COVID block leaves too few months for a Newey-West standard error.
 
 Writes output/phase2/tables.md and the CSVs behind it.
 
@@ -22,9 +25,9 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-from src.config import OUTPUT_DIR
+from src.config import OOS_START, OUTPUT_DIR, SUBPERIODS
 from src.data import load_predictions
-from src.harness import r2_from_sums, fold_sums
+from src.harness import r2_from_sums, fold_sums, score_by_period
 from src.inference import dm_test
 from src.runlog import check, finish, log, report
 
@@ -137,11 +140,55 @@ def dnr_benchmark() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# %% 5. Sub-periods
+def subperiod_scores(scores: pd.DataFrame) -> pd.DataFrame:
+    parts = []
+    for cell in scores[scores["sample"] == "common"].itertuples():
+        p = load_cell(cell.cell)
+        if p is None:
+            continue
+        by = score_by_period(p, SUBPERIODS, YHAT)
+        check(int(by["n"].sum()) == len(p),
+              f"{cell.cell}: sub-periods cover every scored row exactly once ({int(by['n'].sum()):,} of {len(p):,})")
+        parts.append(by.assign(cell=cell.cell, model=cell.model, level=cell.level,
+                               horizon=cell.horizon, predictor_set=cell.predictor_set))
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
+def subperiod_tables(sub: pd.DataFrame) -> str:
+    periods = [name for name, _, _ in SUBPERIODS]
+    spans = ", ".join(f"{name} = {first} to {last}" for name, first, last in SUBPERIODS)
+    lines = ["\n### Sub-period robustness\n",
+             f"Same out-of-sample predictions, re-scored within blocks of forecast-origin months ({spans}). "
+             "At h=12 a late-2019 forecast's label already includes 2020 returns.\n"]
+
+    main = sub[sub["predictor_set"] == "all"]
+    for metric, label in [("r2_zero", "vs zero forecast"), ("r2_hist", "vs prevailing training mean")]:
+        t = main.pivot_table(index=["model", "level", "period"], columns="horizon", values=metric)
+        t = t.reindex([(m, lv, per) for m in MODEL_ORDER for lv in LEVEL_ORDER for per in periods
+                       if (m, lv, per) in t.index])
+        lines += [f"\n#### OOS R² {label}, by sub-period\n", t.to_markdown(floatfmt="+.4f")]
+
+    n_months = main.pivot_table(index="period", columns="horizon", values="n_months", aggfunc="first")
+    lines += ["\n#### Forecast-origin months per sub-period\n", n_months.reindex(periods).to_markdown()]
+
+    l2 = sub[(sub["level"] == "L2") & sub["predictor_set"].isin(["all", "within"])]
+    if l2["predictor_set"].nunique() == 2:
+        t = l2.pivot_table(index=["model", "period", "predictor_set"], columns="horizon", values="r2_zero")
+        t = t.reindex([(m, per, ps) for m in MODEL_ORDER for per in periods for ps in ("all", "within")
+                       if (m, per, ps) in t.index])
+        lines += ["\n#### L2 OOS R² vs zero: all 341 predictors vs the 40 within-issuer ones, by sub-period\n",
+                  t.to_markdown(floatfmt="+.4f")]
+    return "\n".join(lines)
+
+
 # %% Run
 def main() -> None:
     _start = time.time()
     scores = pd.read_csv(OUT / "scores.csv")
     report(f"{len(scores)} scored cells")
+    starts = sorted(scores["oos_start"].astype(str).unique())
+    check(starts == [OOS_START], f"every cell was fitted with config.OOS_START={OOS_START} (found {starts})")
 
     check_adding_up(scores)
 
@@ -163,7 +210,12 @@ def main() -> None:
                dm_show.sort_values(["test", "level", "horizon"]).to_markdown(index=False)]
     if len(dnr):
         md += ["\n### DNR shipped forecasts on our h=1 test rows\n", dnr.to_markdown(index=False, floatfmt="+.4f")]
-    (OUT / "tables.md").write_text("\n".join(md) + "\n")
+
+    sub = subperiod_scores(scores)
+    sub.to_csv(OUT / "subperiods.csv", index=False)
+    if len(sub):
+        md.append(subperiod_tables(sub))
+    (OUT / "tables.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     log(f"wrote {OUT / 'tables.md'}")
 
     finish(_start)

@@ -22,7 +22,7 @@ the leakage assertions are a guard nobody has watched fire.
 import pandas as pd
 import pytest
 
-from src.config import HORIZONS, OOS_START, PANEL_END, PANEL_START
+from src.config import HORIZONS, PANEL_END, PANEL_START
 from src.splits import (
     Fold,
     _generate,
@@ -32,9 +32,8 @@ from src.splits import (
     rows_for_months,
 )
 
-# The group has not settled config.OOS_START (it is deliberately None), so the tests carry
-# their own provisional start. A test must never read the real one: that would couple the
-# suite to a decision nobody has made.
+# The splitter's arithmetic is tested against its own fixed start, independent of
+# config.OOS_START; the pinned value itself is checked in test/test_config.py.
 OOS_START_TEST = pd.Period("2015-01", freq="M")
 
 REFIT_FREQS = (1, 3, 12)
@@ -261,13 +260,6 @@ def test_rejects_oos_start_outside_the_calendar(panel_months):
 def test_rejects_non_positive_horizon_or_refit_freq(toy_months, horizon, refit_freq):
     with pytest.raises(ValueError, match="positive integers"):
         generate_folds(toy_months, pd.Period("2001-01", freq="M"), horizon, refit_freq)
-
-
-def test_config_oos_start_is_unset():
-    # Guards the decision itself: oos_start is a required argument precisely so that no
-    # module inherits an undecided split by accident. When the group settles a value this
-    # test is the one that should be deliberately changed.
-    assert OOS_START is None
 
 
 # --- the only function that touches the panel -------------------------------------------
