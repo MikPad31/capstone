@@ -167,6 +167,19 @@ n        510,510  486,610  385,119
     no refit is needed. `phase2_grid.py` reads it from config and refuses to resume on top of
     cells saved under a different start; `phase2_results.py` checks every cell agrees.
 
+- `bali_replication.py` / `bali_oos.py` (earlier, separate replication of Bali et al.):
+    does RF beat OLS one month ahead? Design differs from the main pipeline: T1 = first 36
+    months to estimate, T2 = next 24 to tune RF (depth 4, min leaf 50 chosen), then monthly
+    refits on all prior months from 2007-07 onward, full panel, raw `retxrf`. Reported:
+    OLS +0.31%, RF +0.55% (`results/replication/`). Superseded as the reported replication by
+    the in-pipeline version (`phase2_results.py`, section 6), because it validates a
+    different design.
+
+    Rerun 2026-11-01 with `requirements-lock.txt`: tuning reproduces OLS to 1e-15 and picks
+    the same RF setting, but RF's validation R^2 is -0.184 vs the committed -0.199, so the RF
+    numbers are not bit-reproducible on these package versions (likely a scikit-learn version
+    difference; the original versions are not recorded). The monthly OOS loop takes hours.
+
 - `phase2_results.py`, section 6 (primary specification, after the Phase 2 proposal feedback):
     are the conclusions robust to scoring every level and horizon on one sample, with L2 forecasts
     demeaned (IC averaged) within issuer-month? The sample common to all 36 main cells is 385,119
