@@ -1,5 +1,128 @@
 # Phase 2 results
-_generated 2026-11-01 18:18 from output/phase2/_
+_generated 2026-11-01 20:56 from output/phase2/_
+## Primary specification
+All levels and horizons scored on the same 385,119 bond-months (2015-01 to 2021-11, 83 forecast-origin months): those present in every cell. Forecasts projected onto each target's constraint (L2 demeaned within issuer-month, IC averaged within it, L0/L1 unchanged). Significance vs a zero forecast (modified DM): * 10%, ** 5%, *** 1%.
+
+
+### OOS R² vs zero forecast
+
+|                | 1         | 3      | 12      |
+|:---------------|:----------|:-------|:--------|
+| ('ols', 'L0')  | +0.74%    | -0.02% | -16.26% |
+| ('ols', 'L1')  | -0.16%    | -0.94% | -7.63%  |
+| ('ols', 'IC')  | -0.59%    | -1.07% | -1.73%  |
+| ('ols', 'L2')  | +1.60%*** | +1.03% | +0.71%  |
+| ('enet', 'L0') | +1.31%    | +0.83% | -3.57%  |
+| ('enet', 'L1') | +0.34%    | +0.02% | +4.48%  |
+| ('enet', 'IC') | +0.29%    | -0.12% | +5.12%  |
+| ('enet', 'L2') | +1.42%*** | +0.94% | +0.85%  |
+| ('rf', 'L0')   | +0.89%    | +0.55% | -6.72%  |
+| ('rf', 'L1')   | -0.13%    | -1.55% | +4.17%  |
+| ('rf', 'IC')   | -0.66%    | -0.65% | +5.12%  |
+| ('rf', 'L2')   | +1.29%*** | +0.74% | +0.48%  |
+
+### OOS R² vs prevailing training mean
+
+|                |       1 |       3 |      12 |
+|:---------------|--------:|--------:|--------:|
+| ('ols', 'L0')  | -0.0018 | -0.0160 | -0.1041 |
+| ('ols', 'L1')  | -0.0047 | -0.0156 | -0.1169 |
+| ('ols', 'IC')  | -0.0096 | -0.0174 | -0.0646 |
+| ('ols', 'L2')  | +0.0160 | +0.0103 | +0.0071 |
+| ('enet', 'L0') | +0.0040 | -0.0075 | +0.0165 |
+| ('enet', 'L1') | +0.0003 | -0.0059 | +0.0088 |
+| ('enet', 'IC') | -0.0007 | -0.0079 | +0.0071 |
+| ('enet', 'L2') | +0.0142 | +0.0094 | +0.0085 |
+| ('rf', 'L0')   | -0.0002 | -0.0102 | -0.0135 |
+| ('rf', 'L1')   | -0.0043 | -0.0216 | +0.0056 |
+| ('rf', 'IC')   | -0.0103 | -0.0131 | +0.0071 |
+| ('rf', 'L2')   | +0.0129 | +0.0074 | +0.0048 |
+
+### Modified Diebold–Mariano tests between forecasts
+
+Positive stat: the second-named model (for 'all vs within', the 341-predictor set) has lower MSE.
+
+| test                | level   |   horizon | stat     |   p_value |   n_months |   lags |
+|:--------------------|:--------|----------:|:---------|----------:|-----------:|-------:|
+| enet vs ols         | IC      |         1 | +1.29    |     0.198 |         83 |      3 |
+| enet vs ols         | IC      |         3 | +0.54    |     0.587 |         83 |      3 |
+| enet vs ols         | IC      |        12 | +0.78    |     0.436 |         83 |     11 |
+| enet vs ols         | L0      |         1 | +0.81    |     0.418 |         83 |      3 |
+| enet vs ols         | L0      |         3 | +0.48    |     0.634 |         83 |      3 |
+| enet vs ols         | L0      |        12 | +2.31**  |     0.021 |         83 |     11 |
+| enet vs ols         | L1      |         1 | +0.82    |     0.413 |         83 |      3 |
+| enet vs ols         | L1      |         3 | +0.57    |     0.567 |         83 |      3 |
+| enet vs ols         | L1      |        12 | +1.36    |     0.174 |         83 |     11 |
+| enet vs ols         | L2      |         1 | -0.99    |     0.323 |         83 |      3 |
+| enet vs ols         | L2      |         3 | -0.12    |     0.901 |         83 |      3 |
+| enet vs ols         | L2      |        12 | +0.11    |     0.914 |         83 |     11 |
+| enet: all vs within | L2      |         1 | +3.82*** |     0     |         83 |      3 |
+| enet: all vs within | L2      |         3 | +1.04    |     0.299 |         83 |      3 |
+| enet: all vs within | L2      |        12 | +1.16    |     0.247 |         83 |     11 |
+| ols: all vs within  | L2      |         1 | +1.65*   |     0.099 |         83 |      3 |
+| ols: all vs within  | L2      |         3 | +0.27    |     0.79  |         83 |      3 |
+| ols: all vs within  | L2      |        12 | +0.35    |     0.73  |         83 |     11 |
+| rf vs enet          | IC      |         1 | -1.19    |     0.235 |         83 |      3 |
+| rf vs enet          | IC      |         3 | -0.48    |     0.63  |         83 |      3 |
+| rf vs enet          | IC      |        12 | -0.00    |     0.996 |         83 |     11 |
+| rf vs enet          | L0      |         1 | -0.22    |     0.824 |         83 |      3 |
+| rf vs enet          | L0      |         3 | -0.23    |     0.82  |         83 |      3 |
+| rf vs enet          | L0      |        12 | -1.11    |     0.267 |         83 |     11 |
+| rf vs enet          | L1      |         1 | -1.61    |     0.107 |         83 |      3 |
+| rf vs enet          | L1      |         3 | -1.89*   |     0.058 |         83 |      3 |
+| rf vs enet          | L1      |        12 | -0.14    |     0.885 |         83 |     11 |
+| rf vs enet          | L2      |         1 | -0.50    |     0.615 |         83 |      3 |
+| rf vs enet          | L2      |         3 | -0.50    |     0.619 |         83 |      3 |
+| rf vs enet          | L2      |        12 | -0.59    |     0.556 |         83 |     11 |
+| rf vs ols           | IC      |         1 | -0.05    |     0.958 |         83 |      3 |
+| rf vs ols           | IC      |         3 | +0.16    |     0.87  |         83 |      3 |
+| rf vs ols           | IC      |        12 | +0.92    |     0.357 |         83 |     11 |
+| rf vs ols           | L0      |         1 | +0.18    |     0.855 |         83 |      3 |
+| rf vs ols           | L0      |         3 | +0.28    |     0.78  |         83 |      3 |
+| rf vs ols           | L0      |        12 | +2.35**  |     0.019 |         83 |     11 |
+| rf vs ols           | L1      |         1 | +0.07    |     0.948 |         83 |      3 |
+| rf vs ols           | L1      |         3 | -0.32    |     0.746 |         83 |      3 |
+| rf vs ols           | L1      |        12 | +1.56    |     0.118 |         83 |     11 |
+| rf vs ols           | L2      |         1 | -0.98    |     0.325 |         83 |      3 |
+| rf vs ols           | L2      |         3 | -0.42    |     0.674 |         83 |      3 |
+| rf vs ols           | L2      |        12 | +0.01    |     0.995 |         83 |     11 |
+| rf: all vs within   | L2      |         1 | -1.14    |     0.255 |         83 |      3 |
+| rf: all vs within   | L2      |         3 | -2.71*** |     0.007 |         83 |      3 |
+| rf: all vs within   | L2      |        12 | +0.35    |     0.728 |         83 |     11 |
+
+### Replication inside the pipeline: L0, h=1, OOS R² vs zero (raw forecasts)
+
+| model   |   h1_sample |   h1_sample_to_2021-11 |   primary |
+|:--------|------------:|-----------------------:|----------:|
+| ols     |     -0.0255 |                -0.0020 |   +0.0074 |
+| enet    |     -0.0179 |                +0.0096 |   +0.0131 |
+| rf      |     -0.0192 |                +0.0068 |   +0.0089 |
+
+Bond-months: h1_sample 510,510, h1_sample_to_2021-11 447,265, primary 385,119. RF vs OLS (DM, positive = RF better): h1_sample +0.59 (p=0.552), h1_sample_to_2021-11 +0.64 (p=0.522), primary +0.18 (p=0.855).
+
+### L2 OOS R² vs zero by sub-period
+
+|                        |       1 |       3 |      12 |
+|:-----------------------|--------:|--------:|--------:|
+| ('ols', 'pre_covid')   | +0.0231 | +0.0038 | -0.0634 |
+| ('ols', 'covid')       | +0.0065 | +0.0188 | +0.0633 |
+| ('ols', 'post_covid')  | +0.0616 | +0.0162 | +0.2293 |
+| ('enet', 'pre_covid')  | +0.0216 | +0.0085 | -0.0061 |
+| ('enet', 'covid')      | +0.0044 | +0.0110 | +0.0017 |
+| ('enet', 'post_covid') | +0.0590 | +0.0073 | +0.1563 |
+| ('rf', 'pre_covid')    | +0.0169 | +0.0017 | -0.0086 |
+| ('rf', 'covid')        | +0.0077 | +0.0129 | +0.0107 |
+| ('rf', 'post_covid')   | +0.0380 | +0.0314 | +0.0727 |
+
+Forecast-origin months per sub-period:
+
+| period     |   1 |   3 |   12 |
+|:-----------|----:|----:|-----:|
+| pre_covid  |  60 |  60 |   60 |
+| covid      |  12 |  12 |   12 |
+| post_covid |  11 |  11 |   11 |
+
+## Appendix: each horizon's own common sample, raw forecasts
 
 ### OOS R² vs zero forecast
 

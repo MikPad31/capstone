@@ -26,9 +26,14 @@ from src.runlog import check, finish, log, report  # noqa: E402
 
 RESULTS_DIR = REPO_ROOT / "results"
 TOL = 1e-6  # numbers are reported to 2-4 decimals; multithreaded tree fits may differ in the last bits
+IGNORE = {"seconds", "rss_gb"}  # run-time bookkeeping, not results
 
 # reported file -> regenerated file, relative to results/ and output/
 FILES = {
+    "phase2/primary_scores.csv": "phase2/primary_scores.csv",
+    "phase2/primary_dm_tests.csv": "phase2/primary_dm_tests.csv",
+    "phase2/primary_subperiods.csv": "phase2/primary_subperiods.csv",
+    "phase2/primary_replication.csv": "phase2/primary_replication.csv",
     "phase2/scores.csv": "phase2/scores.csv",
     "phase2/dm_tests.csv": "phase2/dm_tests.csv",
     "phase2/subperiods.csv": "phase2/subperiods.csv",
@@ -43,6 +48,8 @@ FILES = {
 
 
 def compare(reported: pd.DataFrame, rerun: pd.DataFrame) -> tuple[bool, str]:
+    reported = reported.drop(columns=[c for c in reported.columns if c in IGNORE])
+    rerun = rerun.drop(columns=[c for c in rerun.columns if c in IGNORE])
     if list(reported.columns) != list(rerun.columns) or len(reported) != len(rerun):
         return False, f"shape or columns differ: {reported.shape} vs {rerun.shape}"
     num = [c for c in reported.columns if pd.api.types.is_numeric_dtype(reported[c])
@@ -54,6 +61,8 @@ def compare(reported: pd.DataFrame, rerun: pd.DataFrame) -> tuple[bool, str]:
     a, b = reported[num].to_numpy(dtype=float), rerun[num].to_numpy(dtype=float)
     same_nan = np.array_equal(np.isnan(a), np.isnan(b))
     diff = float(np.nanmax(np.abs(a - b))) if a.size else 0.0
+    if not a.size:
+        return True, f"all {len(keys):,} values identical"
     return same_nan and diff <= TOL, f"max abs diff {diff:.1e} over {a.size:,} numbers"
 
 
@@ -64,8 +73,16 @@ def main() -> None:
         if not rerun.exists():
             report(f"skipped {rel_reported}: output/{rel_rerun} not regenerated yet")
             continue
-        ok, detail = compare(pd.read_csv(reported), pd.read_csv(rerun))
-        check(ok, f"{rel_reported}: {detail}")
+        rep, new = pd.read_csv(reported), pd.read_csv(rerun)
+        scope = ""
+        if "cell" in rep.columns and "cell" in new.columns and len(new) < len(rep):
+            # a partial rerun (some grid cells only): compare just the cells it produced
+            keyed = rep.set_index(["cell", *[c for c in ("period",) if c in rep.columns]])
+            idx = pd.MultiIndex.from_frame(new[keyed.index.names]) if keyed.index.nlevels > 1 else new["cell"]
+            rep = keyed.loc[idx].reset_index()[rep.columns]
+            scope = f" ({new['cell'].nunique()} of {pd.read_csv(reported)['cell'].nunique()} cells rerun)"
+        ok, detail = compare(rep, new)
+        check(ok, f"{rel_reported}: {detail}{scope}")
     log(f"tolerance {TOL:g}")
     finish(start)
 

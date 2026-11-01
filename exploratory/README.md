@@ -167,6 +167,23 @@ n        510,510  486,610  385,119
     no refit is needed. `phase2_grid.py` reads it from config and refuses to resume on top of
     cells saved under a different start; `phase2_results.py` checks every cell agrees.
 
+- `phase2_results.py`, section 6 (primary specification, after the Phase 2 proposal feedback):
+    are the conclusions robust to scoring every level and horizon on one sample, with L2 forecasts
+    demeaned (IC averaged) within issuer-month? The sample common to all 36 main cells is 385,119
+    bond-months, 2015-01 to 2021-11 (83 months). Only L2 at h=1 beats a zero forecast: OLS
+    +1.60%, EN +1.42%, RF +1.29% (DM p < 0.01 each); no other cell has p < 0.3. No model beats
+    another at L2 (all p > 0.3); EN and RF beat OLS only at L0 h=12 (p = 0.021, 0.019). 341 vs 40
+    predictors: EN better with all 341 at h=1 (p < 0.001), RF better with the 40 at h=3
+    (p = 0.007), otherwise not significant. L2 h=1 is positive for every model in every
+    sub-period (2020 weakest, 0.4-0.8%). Issuer-constant predictors give an exactly zero
+    demeaned L2 forecast (checked).
+
+    Replication inside the pipeline (OLS/EN/RF, L0, h=1): RF > OLS in every sample, never
+    significantly. The sign depends on the test window: on the h=1 sample all models are negative
+    (OLS -2.55%, RF -1.92%); cutting that sample at 2021-11 gives OLS -0.20%, RF +0.68%; on the
+    primary sample OLS +0.74%, RF +0.89%. Dec 2021 - Oct 2022 holds 23% of the h=1 sample's
+    squared L0 returns in 11 months.
+
 - `phase2_results.py`, section 5 (sub-period robustness; periods in `config.SUBPERIODS`,
     scoring in `src/harness.py:score_by_period`):
     does the full-sample pattern hold within pre-COVID (2015-01 to 2019-12), COVID (2020) and

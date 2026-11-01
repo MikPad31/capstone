@@ -1,6 +1,16 @@
 """
 Tables and inference for the Phase 2 grid, from the saved predictions only (no refitting).
 
+Primary specification (section 6, reported first, following the Phase 2 proposal feedback):
+every level and horizon scored on the same bond-months -- those present in every cell -- with
+each forecast projected onto its target's constraint: L2 forecasts demeaned within issuer-month
+(L2 sums to zero there by construction, so any issuer-wide part of a forecast is pure error),
+IC forecasts averaged within it, L0 and L1 unchanged. Sections 1-5 use each horizon's own
+common sample and raw forecasts; they are the appendix.
+
+The IC target is fitted and scored on bond-month rows, so an issuer-month counts once per bond:
+issuers with more bonds carry more weight in IC's R^2 and DM tests.
+
     1. OOS R^2 tables, model x level x horizon, against zero (primary) and the prevailing mean
     2. adding-up check: L1 label = IC label + L2 label, row by row, on the common sample
     3. modified Diebold-Mariano tests (Gu-Kelly-Xiu): EN vs OLS, RF vs OLS, RF vs EN per cell;
@@ -10,8 +20,11 @@ Tables and inference for the Phase 2 grid, from the saved predictions only (no r
     5. sub-period robustness: every cell re-scored within each `config.SUBPERIODS` block of
        forecast-origin months (pre-COVID / COVID / post-COVID). No DM tests per sub-period: the
        12-month COVID block leaves too few months for a Newey-West standard error.
+    6. primary specification: sections 1, 3 and 5 again on the all-horizon common sample with
+       projected forecasts, plus the replication inside the pipeline (OLS / EN / RF, L0, h=1),
+       scored on three samples to separate the test-window effect from bond composition
 
-Writes output/phase2/tables.md and the CSVs behind it.
+Writes output/phase2/tables.md and the CSVs behind it (primary_*.csv for section 6).
 
 RUN: DSE4101_DATA_DIR=... python -m exploratory.phase2_results
 """
@@ -27,7 +40,7 @@ import pandas as pd
 
 from src.config import OOS_START, OUTPUT_DIR, SUBPERIODS
 from src.data import load_predictions
-from src.harness import r2_from_sums, fold_sums, score_by_period
+from src.harness import r2_from_sums, fold_sums, score, score_by_period
 from src.inference import dm_test
 from src.runlog import check, finish, log, report
 
@@ -35,7 +48,8 @@ OUT = OUTPUT_DIR / "phase2"
 PREDS_DIR = OUT / "preds"
 LEVEL_ORDER = ["L0", "L1", "IC", "L2"]
 MODEL_ORDER = ["ols", "enet", "rf"]
-YHAT = "yhat"  # raw forecasts are primary; yhat_proj is the adding-up-consistent variant
+YHAT = "yhat"  # sections 1-5 (appendix): raw forecasts
+PRIMARY_YHAT = "yhat_proj"  # section 6 (primary): forecasts projected onto each target's constraint
 
 
 def load_cell(name: str, cols=("row", "date", "y", "yhat", "yhat_proj", "ybar")) -> pd.DataFrame | None:
@@ -182,6 +196,144 @@ def subperiod_tables(sub: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
+# %% 6. Primary specification: one sample for every level and horizon, projected forecasts
+def common_rows(scores: pd.DataFrame) -> pd.Index:
+    """Panel rows present in every main-grid cell, i.e. scored at every level and every horizon."""
+
+    rows = None
+    for cell in scores[(scores["sample"] == "common") & (scores["predictor_set"] == "all")]["cell"]:
+        idx = load_cell(cell, cols=("row",)).index
+        rows = idx if rows is None else rows.intersection(idx)
+    return rows
+
+
+def primary_cell(name: str, rows: pd.Index) -> pd.DataFrame | None:
+    p = load_cell(name)
+    return None if p is None else p.loc[rows]
+
+
+def primary_scores(scores: pd.DataFrame, rows: pd.Index) -> pd.DataFrame:
+    out = []
+    for cell in scores[scores["sample"] == "common"].itertuples():
+        p = primary_cell(cell.cell, rows)
+        if p is None:
+            continue
+        r = dm_test(p["y"], np.zeros(len(p)), p[PRIMARY_YHAT], p["date"], cell.horizon)
+        out.append({"cell": cell.cell, "model": cell.model, "level": cell.level, "horizon": cell.horizon,
+                    "predictor_set": cell.predictor_set, **score(p, PRIMARY_YHAT),
+                    "dm_stat_vs_zero": r["stat"], "p_vs_zero": r["p_value"], "n_months": r["n_months"]})
+    return pd.DataFrame(out)
+
+
+def primary_dm(scores: pd.DataFrame, rows: pd.Index) -> pd.DataFrame:
+    out = []
+    main = scores[(scores["sample"] == "common") & (scores["predictor_set"] == "all")]
+    for (lv, h), grp in main.groupby(["level", "horizon"]):
+        preds = {m: primary_cell(f"{m}_{lv}_h{h}_all_common", rows) for m in grp["model"]}
+        for m1, m2 in combinations([m for m in MODEL_ORDER if preds.get(m) is not None], 2):
+            a, b = preds[m1], preds[m2]
+            out.append({"test": f"{m2} vs {m1}", "level": lv, "horizon": h, "predictor_set": "all",
+                        **dm_test(a["y"], a[PRIMARY_YHAT], b[PRIMARY_YHAT], a["date"], h)})
+    for (m, h), _ in main[main["level"] == "L2"].groupby(["model", "horizon"]):
+        a = primary_cell(f"{m}_L2_h{h}_within_common", rows)
+        b = primary_cell(f"{m}_L2_h{h}_all_common", rows)
+        if a is None or b is None:
+            continue
+        out.append({"test": f"{m}: all vs within", "level": "L2", "horizon": h, "predictor_set": "all|within",
+                    **dm_test(a["y"], a[PRIMARY_YHAT], b[PRIMARY_YHAT], a["date"], h)})
+    return pd.DataFrame(out)
+
+
+def primary_subperiods(scores: pd.DataFrame, rows: pd.Index) -> pd.DataFrame:
+    parts = []
+    for cell in scores[(scores["sample"] == "common") & (scores["predictor_set"] != "constant")].itertuples():
+        p = primary_cell(cell.cell, rows)
+        if p is None:
+            continue
+        by = score_by_period(p, SUBPERIODS, PRIMARY_YHAT)
+        parts.append(by.assign(cell=cell.cell, model=cell.model, level=cell.level,
+                               horizon=cell.horizon, predictor_set=cell.predictor_set))
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
+def pipeline_replication(rows: pd.Index) -> pd.DataFrame:
+    """
+    Bali et al.'s check (does RF beat OLS one month ahead?) inside this pipeline: L0, h=1, on the
+    h=1 common sample, on that sample cut at the primary sample's last month, and on the primary
+    sample. The middle column separates the test-window effect from the bond-composition effect.
+    """
+
+    out = []
+    preds = {m: load_cell(f"{m}_L0_h1_all_common") for m in MODEL_ORDER}
+    preds = {m: p for m, p in preds.items() if p is not None}
+    if not preds:
+        return pd.DataFrame()
+    any_p = next(iter(preds.values()))
+    last = str(any_p.loc[rows, "date"].astype(str).str[:7].max())
+    samples = {"h1_sample": any_p.index,
+               f"h1_sample_to_{last}": any_p.index[any_p["date"].astype(str).str[:7].to_numpy() <= last],
+               "primary": rows}
+    for name, idx in samples.items():
+        for m, p in preds.items():
+            q = p.loc[idx]
+            out.append({"sample": name, "test": f"{m} vs zero", "n": len(q),
+                        "r2_zero": score(q, YHAT)["r2_zero"],
+                        **dm_test(q["y"], np.zeros(len(q)), q[YHAT], q["date"], 1)})
+        if "ols" in preds and "rf" in preds:
+            a, b = preds["ols"].loc[idx], preds["rf"].loc[idx]
+            out.append({"sample": name, "test": "rf vs ols", "n": len(a), "r2_zero": np.nan,
+                        **dm_test(a["y"], a[YHAT], b[YHAT], a["date"], 1)})
+    return pd.DataFrame(out)
+
+
+def primary_tables(ps: pd.DataFrame, pdm: pd.DataFrame, psub: pd.DataFrame, rep: pd.DataFrame,
+                   rows: pd.Index) -> str:
+    months = load_cell(ps["cell"].iloc[0], cols=("row", "date")).loc[rows, "date"].astype(str).str[:7]
+    lines = ["## Primary specification",
+             f"All levels and horizons scored on the same {len(rows):,} bond-months "
+             f"({months.min()} to {months.max()}, {months.nunique()} forecast-origin months): those present "
+             "in every cell. Forecasts projected onto each target's constraint (L2 demeaned within "
+             "issuer-month, IC averaged within it, L0/L1 unchanged). Significance vs a zero forecast "
+             "(modified DM): * 10%, ** 5%, *** 1%.\n"]
+
+    main = ps[ps["predictor_set"] == "all"].assign(
+        cell_txt=lambda d: (d["r2_zero"] * 100).map(lambda v: f"{v:+.2f}%") + d["p_vs_zero"].map(stars))
+    t = main.pivot_table(index=["model", "level"], columns="horizon", values="cell_txt", aggfunc="first")
+    t = t.reindex([(m, lv) for m in MODEL_ORDER for lv in LEVEL_ORDER if (m, lv) in t.index])
+    lines += ["\n### OOS R² vs zero forecast\n", t.to_markdown()]
+    t = main.pivot_table(index=["model", "level"], columns="horizon", values="r2_hist")
+    t = t.reindex([(m, lv) for m in MODEL_ORDER for lv in LEVEL_ORDER if (m, lv) in t.index])
+    lines += ["\n### OOS R² vs prevailing training mean\n", t.to_markdown(floatfmt="+.4f")]
+
+    show = pdm.assign(stat=pdm["stat"].map(lambda v: f"{v:+.2f}") + pdm["p_value"].map(stars),
+                      p_value=pdm["p_value"].map(lambda v: f"{v:.3f}"))
+    lines += ["\n### Modified Diebold–Mariano tests between forecasts\n",
+              "Positive stat: the second-named model (for 'all vs within', the 341-predictor set) has lower MSE.\n",
+              show[["test", "level", "horizon", "stat", "p_value", "n_months", "lags"]]
+              .sort_values(["test", "level", "horizon"]).to_markdown(index=False)]
+
+    if len(rep):
+        t = rep[rep["test"].str.endswith("vs zero")].assign(model=lambda d: d["test"].str.split(" ").str[0])
+        t = t.pivot_table(index="model", columns="sample", values="r2_zero").reindex(MODEL_ORDER)
+        t = t[[c for c in rep["sample"].unique()]]
+        n = rep.groupby("sample", sort=False)["n"].first()
+        rv = rep[rep["test"] == "rf vs ols"].set_index("sample")
+        lines += ["\n### Replication inside the pipeline: L0, h=1, OOS R² vs zero (raw forecasts)\n",
+                  t.to_markdown(floatfmt="+.4f"),
+                  "\nBond-months: " + ", ".join(f"{k} {v:,}" for k, v in n.items()) + ". RF vs OLS (DM, positive = RF "
+                  "better): " + ", ".join(f"{k} {r.stat:+.2f} (p={r.p_value:.3f})" for k, r in rv.iterrows()) + "."]
+
+    if len(psub):
+        l2 = psub[(psub["level"] == "L2") & (psub["predictor_set"] == "all")]
+        t = l2.pivot_table(index=["model", "period"], columns="horizon", values="r2_zero")
+        periods = [name for name, _, _ in SUBPERIODS]
+        t = t.reindex([(m, per) for m in MODEL_ORDER for per in periods if (m, per) in t.index])
+        nm = l2.pivot_table(index="period", columns="horizon", values="n_months", aggfunc="first").reindex(periods)
+        lines += ["\n### L2 OOS R² vs zero by sub-period\n", t.to_markdown(floatfmt="+.4f"),
+                  "\nForecast-origin months per sub-period:\n", nm.to_markdown()]
+    return "\n".join(lines)
+
+
 # %% Run
 def main() -> None:
     _start = time.time()
@@ -198,7 +350,22 @@ def main() -> None:
     dnr = dnr_benchmark()
     dnr.to_csv(OUT / "dnr_benchmark.csv", index=False)
 
-    md = ["# Phase 2 results", f"_generated {time.strftime('%Y-%m-%d %H:%M')} from output/phase2/_", r2_tables(scores)]
+    rows = common_rows(scores)
+    ps, pdm, psub = primary_scores(scores, rows), primary_dm(scores, rows), primary_subperiods(scores, rows)
+    for cell in ps.itertuples():
+        if cell.predictor_set == "constant":
+            check(abs(cell.r2_zero) < 1e-12,
+                  f"{cell.cell}: issuer-constant predictors give a zero demeaned L2 forecast (R² {cell.r2_zero:.1e})")
+    rep = pipeline_replication(rows)
+    ps.to_csv(OUT / "primary_scores.csv", index=False)
+    rep.to_csv(OUT / "primary_replication.csv", index=False)
+    pdm.to_csv(OUT / "primary_dm_tests.csv", index=False)
+    psub.to_csv(OUT / "primary_subperiods.csv", index=False)
+    report(f"primary sample: {len(rows):,} bond-months common to every level and horizon")
+
+    md = ["# Phase 2 results", f"_generated {time.strftime('%Y-%m-%d %H:%M')} from output/phase2/_",
+          primary_tables(ps, pdm, psub, rep, rows),
+          "\n## Appendix: each horizon's own common sample, raw forecasts", r2_tables(scores)]
     if len(dm):
         dm_show = dm.assign(
             stat=dm["stat"].map(lambda v: f"{v:+.2f}") + dm["p_value"].map(stars),
