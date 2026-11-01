@@ -103,6 +103,15 @@ L2       510510  486610  385119
 done in 956.8s. peak rss=5.56GB
 ```
 
+- `data_summary.py`:
+    what does the data look like, for the report's data section and the slides? 1,102,569
+    bond-months, 19,768 bonds, 2,030 issuers, 245 months (2002-07 to 2022-11); 94.1% of
+    bond-months share an issuer-month with another bond (median 3 bonds per issuer-month).
+    Predictors have no missing values and lie in [-1, 1]. On the common sample, monthly SD is
+    3.21% (L0), 2.99% (L1), 2.65% (IC) and 1.38% (L2); L2's share of L1's sum of squares falls
+    with horizon, 21.3% / 16.8% / 13.0% at h=1/3/12. IC and L2 rebuilt here match the saved
+    test-period labels exactly at every horizon. Writes `output/data_summary/`; ~20 s.
+
 - `within_issuer_predictors.py`:
     which predictors vary across an issuer's bonds in the same month? Exactly 301 of 341 never
     vary within a (`gvkey`, month); 40 vary in >= 5% of multi-bond issuer-months (38 of them in
