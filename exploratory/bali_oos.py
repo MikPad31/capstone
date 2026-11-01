@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 
+from src.config import OUTPUT_DIR as CONFIG_OUTPUT_DIR
 from src.data import load_panel, PREDICTOR_COLS
 
 
@@ -13,7 +14,7 @@ from src.data import load_panel, PREDICTOR_COLS
 # 1. OUTPUT PATHS
 # ============================================================
 
-OUTPUT_DIR = Path("exploratory/bali_replication_outputs")
+OUTPUT_DIR = CONFIG_OUTPUT_DIR / "replication"  # gitignored; the reported numbers are in results/replication/
 MONTHLY_DIR = OUTPUT_DIR / "monthly_oos"
 
 PARAMS_PATH = OUTPUT_DIR / "best_rf_params.json"

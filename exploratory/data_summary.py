@@ -22,7 +22,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from src.config import OUTPUT_DIR
+from src.config import OOS_START as CONFIG_OOS_START, OUTPUT_DIR
 from src.data import PREDICTOR_COLS, load_panel
 from src.harness import IC, L0, L1, L2, build_labels, eligible_rows, label_col, project
 from src.runlog import check, finish, log, report
@@ -30,7 +30,7 @@ from src.runlog import check, finish, log, report
 OUT = OUTPUT_DIR / "data_summary"
 PREDS_DIR = OUTPUT_DIR / "phase2" / "preds"
 HORIZONS = (1, 3, 12)
-OOS_START = pd.Period("2015-01", freq="M")  # as in phase2_grid.py; still provisional in src/config.py
+OOS_START = pd.Period(CONFIG_OOS_START, freq="M")
 OUT.mkdir(parents=True, exist_ok=True)
 _start = time.time()
 

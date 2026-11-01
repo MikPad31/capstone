@@ -4,7 +4,12 @@ One line per script: what it asked, what it found.
 
 - `key_choice_exploration.py`:
     is `gvkey` or `issuer_cusip` the right issuer key for L2?
-    *Pending findings. For now, downstream functions are parameterised to take in either `gvkey` or `issuer_cusip`.*
+    Settled on `gvkey` (consolidated parent firm), the key every Phase 2 target uses (IC, L2,
+    the common sample). Functions in `src/decompose.py` still take either key.
+
+- `key_choice_r2.py`:
+    companion to the above: what the key choice does to exposure, the decomposition, the folds
+    and power. Findings were not written up here; rerun it for the numbers.
 
 - `splits_prototype.py`:
     does an `h`-month embargo remove the overlap between a fold's
@@ -16,7 +21,7 @@ One line per script: what it asked, what it found.
     `dnr_ml_predictions/README.txt`, where `realized_return_date` is `t+1` for `signal_date`
     `t`. The leakage checks move with it and so cannot catch it; pinned in `test/test_splits.py`.
 
-    Counts below assume `oos_start=2015-01` and are provisional — `config.OOS_START` is unset.
+    Counts below assume `oos_start=2015-01`, since fixed in `config.OOS_START`.
 
   ```
   [verify] PASS — naive splitter at h=12 leaks exactly h-1=11 calendar months in every one of its 7 folds (got [11])
@@ -74,7 +79,7 @@ One line per script: what it asked, what it found.
     and the `r2_from_sums` cross-check in all nine cells. Representative lines below; the full log
     is ~700 lines.
 
-    Counts assume `oos_start=2015-01` and are provisional; `config.OOS_START` is unset.
+    Counts assume `oos_start=2015-01`, since fixed in `config.OOS_START`.
 
 ```
 OOS R^2 (zero benchmark), levels x horizons:
