@@ -173,7 +173,9 @@ n        510,510  486,610  385,119
     refits on all prior months from 2007-07 onward, full panel, raw `retxrf`. Reported:
     OLS +0.31%, RF +0.55% (`results/replication/`). Superseded as the reported replication by
     the in-pipeline version (`phase2_results.py`, section 6), because it validates a
-    different design.
+    different design. A full rerun reproduces it to the reported precision (OLS 0.3095% vs
+    0.3094%, RF 0.5503% vs 0.5519%, same chosen RF parameters); the RF is not bit-identical,
+    likely because of a different scikit-learn version.
 
     Rerun 2026-11-01 with `requirements-lock.txt`: tuning reproduces OLS to 1e-15 and picks
     the same RF setting, but RF's validation R^2 is -0.184 vs the committed -0.199, so the RF
