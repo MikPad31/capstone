@@ -15,4 +15,5 @@ $PY -m exploratory.phase2_grid --models ols,enet,rf 2>&1 | tee -a output/logs/ph
 $PY -m exploratory.phase2_grid --models ols,enet,rf --levels L2 --predictor-set within 2>&1 | tee -a output/logs/phase2_within.log
 $PY -m exploratory.phase2_grid --models ols,rf --levels L2 --predictor-set constant 2>&1 | tee -a output/logs/phase2_constant.log
 $PY -m exploratory.phase2_results 2>&1 | tee -a output/logs/phase2_results.log
+$PY -m exploratory.dm_weighting_check 2>&1 | tee -a output/logs/dm_weighting_check.log
 $PY -m exploratory.data_summary 2>&1 | tee -a output/logs/data_summary.log

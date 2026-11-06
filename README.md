@@ -140,6 +140,7 @@ longer in wall-clock time.
 | Replication inside the pipeline (OLS / EN / RF, L0, 1 month, three samples) | `phase2/primary_replication.csv` | `exploratory/phase2_results.py` |
 | Appendix: each horizon's own sample, raw forecasts (R², DM tests, sub-periods) | `phase2/scores.csv`, `phase2/dm_tests.csv`, `phase2/subperiods.csv` | `exploratory/phase2_grid.py`, `exploratory/phase2_results.py` |
 | Chosen hyperparameters per refit (e.g. RF tree depth) | `phase2/diagnostics/` | `exploratory/phase2_grid.py` |
+| DM tests with bond-month weights instead of month-equal weights (no 5% verdict changes) | `phase2/dm_weighting_check.csv` | `exploratory/dm_weighting_check.py` |
 | DNR authors' forecasts on our test rows | `phase2/dnr_benchmark.csv` | `exploratory/phase2_results.py` |
 | Earlier, separate replication of Bali et al. (monthly refits from 2007-07, full panel: OLS 0.31%, RF 0.55%) | `replication/` | `exploratory/bali_replication.py`, `exploratory/bali_oos.py` |
 

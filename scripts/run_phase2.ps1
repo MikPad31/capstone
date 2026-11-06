@@ -17,6 +17,7 @@ $steps = @(
     @{ log = "phase2_within.log";   args = @("-m", "exploratory.phase2_grid", "--models", "ols,enet,rf", "--levels", "L2", "--predictor-set", "within") },
     @{ log = "phase2_constant.log"; args = @("-m", "exploratory.phase2_grid", "--models", "ols,rf", "--levels", "L2", "--predictor-set", "constant") },
     @{ log = "phase2_results.log";  args = @("-m", "exploratory.phase2_results") },
+    @{ log = "dm_weighting_check.log"; args = @("-m", "exploratory.dm_weighting_check") },
     @{ log = "data_summary.log";    args = @("-m", "exploratory.data_summary") }
 )
 

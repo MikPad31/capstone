@@ -117,6 +117,14 @@ done in 956.8s. peak rss=5.56GB
     with horizon, 21.3% / 16.8% / 13.0% at h=1/3/12. IC and L2 rebuilt here match the saved
     test-period labels exactly at every horizon. Writes `output/data_summary/`; ~20 s.
 
+- `dm_weighting_check.py`:
+    pooled OOS R^2 weights each month by its number of bonds, while the DM test averages within
+    the month first, so every month counts equally. Does that change any conclusion? Reruns every
+    reported test (vs zero on the main grid and the primary specification, and model vs model)
+    with bond-month weights: no 5% verdict changes in any of the 108 tests, since bonds per month
+    are stable (4,296 to 5,831). Checks that its month-equal statistics reproduce the reported
+    tests. Writes `output/phase2/dm_weighting_check.csv`; ~5 s.
+
 - `within_issuer_predictors.py`:
     which predictors vary across an issuer's bonds in the same month? Exactly 301 of 341 never
     vary within a (`gvkey`, month); 40 vary in >= 5% of multi-bond issuer-months (38 of them in
