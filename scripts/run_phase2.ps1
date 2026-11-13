@@ -1,4 +1,4 @@
-# Windows PowerShell version of scripts/run_phase2.sh: same six steps, same logs, resumable.
+# Windows PowerShell version of scripts/run_phase2.sh: same seven steps, same logs, resumable.
 # Run from the repo root:  powershell -ExecutionPolicy Bypass -File scripts\run_phase2.ps1
 # Override the interpreter with:  $env:PY = "C:\path\to\python.exe"
 

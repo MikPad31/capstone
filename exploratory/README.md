@@ -60,7 +60,7 @@ One line per script: what it asked, what it found.
 [report] retxrf_realized_return h=12: 79.8% labelled overall
 ```
 
-- `target_pipeline.py`:
+- `target_pipeline.py` (midterm results; superseded by the Phase 2 pipeline below):
     does the decomposition, fitted fold by fold with the embargo, produce an OOS R², and does the
     embargo cost anything measurable? Yes to both. Nine cells (3 levels × h ∈ {1, 3, 12}, OLS, one
     run): predictability rises at every step down the decomposition and falls with horizon, no
@@ -119,10 +119,11 @@ done in 956.8s. peak rss=5.56GB
 
 - `dm_weighting_check.py`:
     pooled OOS R^2 weights each month by its number of bonds, while the DM test averages within
-    the month first, so every month counts equally. Does that change any conclusion? Reruns every
-    reported test (vs zero on the main grid and the primary specification, and model vs model)
-    with bond-month weights: no 5% verdict changes in any of the 108 tests, since bonds per month
-    are stable (4,296 to 5,831). Checks that its month-equal statistics reproduce the reported
+    the month first, so every month counts equally. Does that change any conclusion? Reruns, with
+    bond-month weights, every test against the zero forecast (each horizon's own sample and the
+    primary specification) and the model-vs-model tests on each horizon's own sample: no 5% verdict
+    changes in any of the 108 tests, since bonds per month are stable (4,296 to 5,831). The
+    primary model-vs-model and all-vs-within tests are not rechecked. Checks that its month-equal statistics reproduce the reported
     tests. Writes `output/phase2/dm_weighting_check.csv`; ~5 s.
 
 - `within_issuer_predictors.py`:
@@ -133,9 +134,14 @@ done in 956.8s. peak rss=5.56GB
 
 - `phase2_grid.py` / `phase2_results.py` (harness promoted to `src/harness.py`, models in
     `src/models.py`, DM test in `src/inference.py`; full run: `bash scripts/run_phase2.sh`):
-    OLS, Elastic Net, Random Forest (LightGBM `boosting="rf"`) x L0/L1/IC/L2 x h=1/3/12 on the
-    common sample (same L2-eligible rows for every level), plus L2 with the 40 within-issuer
-    predictors. EN and RF tune on the last 36 training months behind an h-month embargo.
+    OLS, Elastic Net, Random Forest (LightGBM `boosting="rf"`) x L0/L1/IC/L2 x h=1/3/12 on
+    each horizon's own sample (the same L2-eligible rows for every level at that horizon), plus
+    L2 with the 40 within-issuer predictors. EN and RF tune on the last 36 training months behind
+    an h-month embargo.
+
+    The numbers in this entry are each horizon's own sample with raw forecasts, which the report
+    now carries as its appendix. The reported (primary) results are in the `phase2_results.py`,
+    section 6 entry below.
 
     Only L2 at h=1 beats a zero forecast significantly: RF +0.0089 (DM p=0.001), EN +0.0082
     (p=0.06, so 10% level only). L1/IC at h=12 reach +0.04-0.05 vs zero but < 0.01 vs the
@@ -160,7 +166,7 @@ done in 956.8s. peak rss=5.56GB
     issuer-constant predictors, L2 R^2 is exactly 0 for OLS and within 4e-7 of 0 for RF.
 
 ```
-OOS R^2 (zero benchmark), common sample, all predictors:
+OOS R^2 (zero benchmark), each horizon's own sample, raw forecasts, all predictors:
            h=1      h=3      h=12
 ols  L2  +0.0051  -0.0076  -0.0305
 enet L2  +0.0082  +0.0047  +0.0069

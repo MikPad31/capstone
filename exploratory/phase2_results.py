@@ -308,7 +308,7 @@ def primary_tables(ps: pd.DataFrame, pdm: pd.DataFrame, psub: pd.DataFrame, rep:
     show = pdm.assign(stat=pdm["stat"].map(lambda v: f"{v:+.2f}") + pdm["p_value"].map(stars),
                       p_value=pdm["p_value"].map(lambda v: f"{v:.3f}"))
     lines += ["\n### Modified Diebold–Mariano tests between forecasts\n",
-              "Positive stat: the second-named model (for 'all vs within', the 341-predictor set) has lower MSE.\n",
+              "Positive stat: the first-named model (for 'all vs within', the 341-predictor set) has lower MSE.\n",
               show[["test", "level", "horizon", "stat", "p_value", "n_months", "lags"]]
               .sort_values(["test", "level", "horizon"]).to_markdown(index=False)]
 
@@ -372,7 +372,7 @@ def main() -> None:
             p_value=dm["p_value"].map(lambda v: f"{v:.3f}"),
         )[["test", "level", "horizon", "predictor_set", "stat", "p_value", "n_months", "lags"]]
         md += ["\n### Modified Diebold–Mariano tests\n",
-               "Positive stat: the second-named model (or, for 'vs zero', the model) has lower MSE. "
+               "Positive stat: the first-named model (or, for 'vs zero', the model) has lower MSE. "
                "Newey–West, lags = max(h−1, ⌊4(T/100)^(2/9)⌋). * 10%, ** 5%, *** 1%.\n",
                dm_show.sort_values(["test", "level", "horizon"]).to_markdown(index=False)]
     if len(dnr):
