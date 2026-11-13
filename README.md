@@ -4,8 +4,9 @@ DSE4101 Capstone Project in Data Science and Economics I, Semester 1 AY2026/27. 
 Avaneesh Reddy, Gan Zhi Yu Charlene, Padua Mikhail Anthony Gagni, Tan Shyan Q'yan Kate,
 Vanisha Muthu, Wang Yutian.
 
-**Question.** How do the economic components of machine-learning predictability in corporate
-bond returns vary across forecast horizons?
+**Question.** How does out-of-sample predictability vary across total excess,
+Treasury-adjusted corporate-specific, issuer-common, and within-issuer bond-specific corporate
+bond returns at 1-, 3-, and 12-month forecast horizons?
 
 **Approach.** Each bond's return is split into nested targets, and each target is forecast with
 OLS, Elastic Net and Random Forest at 1, 3 and 12 months under one out-of-sample framework
@@ -75,22 +76,25 @@ export DSE4101_DATA_DIR=/path/to/folder/with/the/files      # Windows: $env:DSE4
 
 ## Setup
 
-Python 3.11 or later (developed on 3.13). A 16 GB machine is enough: the pipeline peaks at about
-9 GB of memory.
+Python 3.12 or later (results produced on 3.13; the pinned `numpy` in `requirements-lock.txt`
+does not install on 3.11). A 16 GB machine is enough: the pipeline peaks at about 9 GB of memory.
 
 ```bash
 git clone https://github.com/MikPad31/capstone.git
 cd capstone
+git checkout final-submission                         # the commit the report describes
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-lock.txt
 python scripts/get_data.py
 pytest test/                                          # 151 tests, no data needed, ~5 s
 ```
 
-`pandas` is pinned below 3.0 because the column-selective loader in `src/data.py` hooks pandas
-2.x pickle internals.
-`requirements-lock.txt` lists the exact versions the reported results were produced with
-(`pip install -r requirements-lock.txt` to match them).
+`requirements-lock.txt` pins the exact versions the reported results were produced with. Install
+it, rather than `requirements.txt`, when reproducing the results: `check_results.py` allows a
+difference of only 10⁻⁶, and other library versions can move the fitted numbers by more than
+that. `requirements.txt` gives the supported version ranges, for working on the code. `pandas`
+is kept below 3.0 because the column-selective loader in `src/data.py` hooks pandas 2.x pickle
+internals.
 
 ---
 
@@ -109,12 +113,17 @@ we report are committed in `results/`, and `scripts/check_results.py` compares t
 Step 2 runs, in order: the within-issuer predictor split; the 36-cell main grid (3 models × 4
 targets × 3 horizons); L2 with only the 40 within-issuer predictors; L2 with only the 301
 issuer-constant predictors (a pipeline check whose R² must be zero); the result tables and
-Diebold–Mariano tests; and the data summary. It is resumable: a cell whose predictions already
-exist is skipped, so an interrupted run picks up where it stopped. Logs go to `output/logs/`.
+Diebold–Mariano tests; the Diebold–Mariano weighting check; and the data summary. It is
+resumable: a cell whose predictions already exist is skipped, so an interrupted run picks up
+where it stopped. Logs go to `output/logs/`.
 
-**Quicker check of the headline result.** Instead of the full step 2, fit only the 1-month L2
+**Quicker check of the one-month L2 fits.** Instead of the full step 2, fit only the 1-month L2
 cells (a few minutes for OLS, longer for Random Forest), then compare; `check_results.py`
-compares just the cells that were rerun:
+compares just the cells that were rerun. This reproduces those cells' rows in
+`results/phase2/scores.csv`: the one-month L2 R² on that horizon's own sample (the appendix),
+raw (OLS 0.51%, RF 0.89%) and demeaned (OLS 1.24%, RF 1.06%). It does not reproduce the
+headline primary numbers (OLS 1.60%, RF 1.29%): the primary sample is the set of bond-months
+present in all 36 main cells, so those need the full step 2.
 
 ```bash
 python -m exploratory.within_issuer_predictors
@@ -190,6 +199,9 @@ including the earlier midterm and prototype scripts that the current pipeline gr
 - **No data in the repo.** `data/` and `output/` are gitignored. `results/` holds only the small
   CSVs behind reported numbers.
 - **No absolute paths.** Every path comes from `src/config.py`.
-- **Nothing enters `src/` untested.** One `test/test_<module>.py` per module, runnable without
-  the data.
+- **`src/` is tested.** Every module that runs without the data has a `test/test_<module>.py`,
+  runnable on a clean checkout. The two that need the real panel are checked by the `[verify]`
+  checks of the analysis scripts instead: `data.py` (the loader and target join) and
+  `pipeline.py` (OLS, which reproduces the midterm OLS results exactly on the two cells rerun).
+  `runlog.py` only logs.
 - **It has to run from a clean checkout.**

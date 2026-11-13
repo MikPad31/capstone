@@ -40,7 +40,7 @@ All levels and horizons scored on the same 385,119 bond-months (2015-01 to 2021-
 
 ### Modified Diebold–Mariano tests between forecasts
 
-Positive stat: the second-named model (for 'all vs within', the 341-predictor set) has lower MSE.
+Positive stat: the first-named model (for 'all vs within', the 341-predictor set) has lower MSE.
 
 | test                | level   |   horizon | stat     |   p_value |   n_months |   lags |
 |:--------------------|:--------|----------:|:---------|----------:|-----------:|-------:|
@@ -186,7 +186,7 @@ Forecast-origin months per sub-period:
 
 ### Modified Diebold–Mariano tests
 
-Positive stat: the second-named model (or, for 'vs zero', the model) has lower MSE. Newey–West, lags = max(h−1, ⌊4(T/100)^(2/9)⌋). * 10%, ** 5%, *** 1%.
+Positive stat: the first-named model (or, for 'vs zero', the model) has lower MSE. Newey–West, lags = max(h−1, ⌊4(T/100)^(2/9)⌋). * 10%, ** 5%, *** 1%.
 
 | test                | level   |   horizon | predictor_set   | stat      |   p_value |   n_months |   lags |
 |:--------------------|:--------|----------:|:----------------|:----------|----------:|-----------:|-------:|
