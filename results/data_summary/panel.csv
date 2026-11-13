@@ -1,0 +1,15 @@
+stat,value
+n_predictors,341
+predictor_nan_cells,0
+predictor_min,-1.0
+predictor_max,1.0
+predictor_zero_share,0.08348473194816364
+bond_months,1102569
+bonds,19768
+issuers,2030
+first_month,2002-07
+last_month,2022-11
+n_months,245
+rows_with_gvkey,1102569
+share_in_multibond_issuer_month,0.9410531222989219
+median_bonds_per_issuer_month,3.0

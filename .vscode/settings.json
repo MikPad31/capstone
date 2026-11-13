@@ -1,0 +1,6 @@
+{
+  // Start Jupyter kernels at the repo root, not next to the file being run. Scripts in
+  // exploratory/ import from src/, which is only on sys.path when the working directory
+  // is the repo root -- the same reason test/conftest.py exists for pytest.
+  "jupyter.notebookFileRoot": "${workspaceFolder}"
+}
